@@ -298,7 +298,7 @@ tr:nth-child(even) td{background:var(--blush);}
 
         <div class="fgrp">
           <label for="fhName">Family Head Name <span class="req">*</span></label>
-          <input type="text" id="fhName" placeholder="e.g. Hiren Patel" required autocomplete="off">
+          <input type="text" id="fhName" placeholder="e.g. The Sharma Family" required autocomplete="off">
         </div>
 
         <div class="divider"><span>👨‍👩‍👧‍👦</span></div>
@@ -423,12 +423,39 @@ document.querySelectorAll('.nb.m').forEach(function(btn){
   btn.onclick = function(){ adj(btn.closest('.nw').querySelector('input').id, -1); };
 });
 
-// ── API HELPER (GET with query params — avoids CORS preflight) ──
+// ── API HELPER (JSONP — fully bypasses CORS) ──
+var jsonpCounter = 0;
 function apiGet(params) {
-  var qs = Object.keys(params).map(function(k) {
-    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-  }).join('&');
-  return fetch(API_URL + '?' + qs);
+  return new Promise(function(resolve, reject) {
+    var cbName = 'jsonpCb' + (jsonpCounter++);
+    var timeout = setTimeout(function() {
+      cleanup();
+      reject(new Error('Request timed out'));
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    var qs = Object.keys(params).map(function(k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+
+    var script = document.createElement('script');
+    script.src = API_URL + '?' + qs + '&callback=' + cbName;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('Failed to reach server'));
+    };
+    document.body.appendChild(script);
+  });
 }
 
 // ── SUBMIT RSVP ───────────────────────────────────────────
@@ -441,14 +468,13 @@ async function submitRsvp(e) {
   btn.textContent = 'Submitting…';
 
   try {
-    var res  = await apiGet({
+    var data  = await apiGet({
       action:           'rsvp',
       familyHead:       document.getElementById('fhName').value,
       totalAdults:      parseInt(document.getElementById('nAdults').value)   || 0,
       childrenAge3to12: parseInt(document.getElementById('nKids').value)     || 0,
       childrenBelow3:   parseInt(document.getElementById('nInfants').value)  || 0
     });
-    var data = await res.json();
 
     if (data.success) {
       document.getElementById('rsvp-form').style.display = 'none';
@@ -478,8 +504,7 @@ async function doLogin() {
   var pwd = document.getElementById('lo-pwd').value;
   storedPwd = pwd;
   try {
-    var res  = await apiGet({ action:'report', password:pwd });
-    var data = await res.json();
+    var data = await apiGet({ action:'report', password:pwd });
     if (data.success) {
       closeLogin();
       showReportPage(data);
@@ -494,8 +519,7 @@ async function doLogin() {
 
 async function loadReport() {
   try {
-    var res  = await apiGet({ action:'report', password:storedPwd });
-    var data = await res.json();
+    var data = await apiGet({ action:'report', password:storedPwd });
     if (data.success) renderReport(data);
   } catch(e) {}
 }
