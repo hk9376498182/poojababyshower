@@ -406,7 +406,7 @@ tr:nth-child(even) td{background:var(--blush);}
 
 <script>
 // ── CONFIG ── paste your Apps Script Web App URL here after deploying
-var API_URL = "https://script.google.com/macros/s/AKfycbxFstFSDiImaZtE0WPF670JWGrgSeZSpog08wLtntg024tyX6WpDkY7TLwm1aQ91nU/exec";
+var API_URL = "https://script.google.com/macros/s/AKfycbzhVCsx9nVlzF-CxaU9KrMdNFntWQP6Cw1aED3owTN16AEE_WiFIRr2EYhU1fsrqbnt/exec";
 
 var storedPwd = "";
 
@@ -423,6 +423,14 @@ document.querySelectorAll('.nb.m').forEach(function(btn){
   btn.onclick = function(){ adj(btn.closest('.nw').querySelector('input').id, -1); };
 });
 
+// ── API HELPER (GET with query params — avoids CORS preflight) ──
+function apiGet(params) {
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+  return fetch(API_URL + '?' + qs);
+}
+
 // ── SUBMIT RSVP ───────────────────────────────────────────
 async function submitRsvp(e) {
   e.preventDefault();
@@ -432,16 +440,14 @@ async function submitRsvp(e) {
   btn.disabled = true;
   btn.textContent = 'Submitting…';
 
-  var payload = {
-    action:          'rsvp',
-    familyHead:      document.getElementById('fhName').value,
-    totalAdults:     parseInt(document.getElementById('nAdults').value)  || 0,
-    childrenAge3to12:parseInt(document.getElementById('nKids').value)    || 0,
-    childrenBelow3:  parseInt(document.getElementById('nInfants').value) || 0
-  };
-
   try {
-    var res  = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
+    var res  = await apiGet({
+      action:           'rsvp',
+      familyHead:       document.getElementById('fhName').value,
+      totalAdults:      parseInt(document.getElementById('nAdults').value)   || 0,
+      childrenAge3to12: parseInt(document.getElementById('nKids').value)     || 0,
+      childrenBelow3:   parseInt(document.getElementById('nInfants').value)  || 0
+    });
     var data = await res.json();
 
     if (data.success) {
@@ -472,7 +478,7 @@ async function doLogin() {
   var pwd = document.getElementById('lo-pwd').value;
   storedPwd = pwd;
   try {
-    var res  = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'report', password:pwd }) });
+    var res  = await apiGet({ action:'report', password:pwd });
     var data = await res.json();
     if (data.success) {
       closeLogin();
@@ -488,7 +494,7 @@ async function doLogin() {
 
 async function loadReport() {
   try {
-    var res  = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'report', password:storedPwd }) });
+    var res  = await apiGet({ action:'report', password:storedPwd });
     var data = await res.json();
     if (data.success) renderReport(data);
   } catch(e) {}
